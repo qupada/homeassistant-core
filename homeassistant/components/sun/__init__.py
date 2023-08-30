@@ -67,19 +67,6 @@ PHASE_SMALL_DAY = "small_day"
 # > 10° above horizon
 PHASE_DAY = "day"
 
-# 4 mins is one degree of arc change of the sun on its circle.
-# During the night and the middle of the day we don't update
-# that much since it's not important.
-_PHASE_UPDATES = {
-    PHASE_NIGHT: timedelta(minutes=4 * 5),
-    PHASE_ASTRONOMICAL_TWILIGHT: timedelta(minutes=4 * 2),
-    PHASE_NAUTICAL_TWILIGHT: timedelta(minutes=4 * 2),
-    PHASE_TWILIGHT: timedelta(minutes=4),
-    PHASE_SMALL_DAY: timedelta(minutes=2),
-    PHASE_DAY: timedelta(minutes=4),
-}
-
-
 CONFIG_SCHEMA = cv.empty_config_schema(DOMAIN)
 
 
@@ -300,7 +287,20 @@ class Sun(Entity):
 
         # Next update as per the current phase
         assert self.phase
-        delta = _PHASE_UPDATES[self.phase]
+
+        # Provide progressively lower update frequency either
+        # side of sunrise, expecting that greatest precision
+        # is required around sunrise, and least during the
+        # middle of the day and night.
+        if abs(self.solar_elevation) <= 6:
+            delta = timedelta(minutes=2)
+        elif abs(self.solar_elevation) <= 12:
+            delta = timedelta(minutes=4)
+        elif abs(self.solar_elevation) <= 18:
+            delta = timedelta(minutes=8)
+        else:
+            delta = timedelta(minutes=12)
+
         # if the next update is within 1.25 of the next
         # position update just drop it
         if utc_point_in_time + delta * 1.25 > self._next_change:
